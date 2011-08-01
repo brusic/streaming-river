@@ -24,7 +24,7 @@ class StreamingRiverProject(info: ProjectInfo) extends DefaultProject(info) {
   lazy val packageElasticsearch =
     zipTask(runJars, outputPath / pluginName, elasticsearchJarPluginName)
       .dependsOn(`package`)
-      .describedAs("Zips up the simplewebsocket.plugin using the required elasticsearch filename format.")
+      .describedAs("Zips up the streaming river plugin using the required elasticsearch filename format.")
 
   lazy val specsDependency =
     (if (buildScalaVersion startsWith "2.7.")

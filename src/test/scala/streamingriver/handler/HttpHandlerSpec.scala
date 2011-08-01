@@ -14,7 +14,7 @@ class HttpHandlerSpec extends Specification {
     "A 'HttpHandler' should stream" in {
       var count = 0
       handler = new HttpHandler(TEST_URL)
-      handler.addObservers(new Object { def handleMessage(msg: String) { count = count + 1} } )
+      handler.addObserver(new Object { def handleMessage(msg: String) { count = count + 1} } )
       handler.connect
       count must eventually(2, 10.seconds)(beGreaterThan(0))
       handler.close

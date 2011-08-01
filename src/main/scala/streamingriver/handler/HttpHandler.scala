@@ -6,16 +6,16 @@ class HttpHandler(uri: String) extends StreamHandler {
   logger.info("creating http handler")
 
   // Create mutable executor so that it can be restarted via connect (after a close)
-  var h: HttpExecutor = _
+  var http: HttpExecutor = _
 
-  override def connect = {
+  override def connect {
     logger.info("Opening HTTP stream for ".format(uri))
-    h = new nio.Http
-    h(url(uri) ^-- { msg => observers.foreach { listener => listener.handleMessage(msg)}})
+    http = new nio.Http
+    http(url(uri) ^-- { msg => observers.foreach { observer => observer.handleMessage(msg)}})
   }
 
-  override def close = {
+  override def close {
     logger.info("Closing HTTP stream for ".format(uri))
-    h.shutdown()
+    http.shutdown()
   }
 }

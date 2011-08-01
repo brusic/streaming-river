@@ -5,13 +5,13 @@ import org.elasticsearch.common.logging.ESLoggerFactory
 
 abstract class StreamHandler {
   type Observer = {
-    def handleMessage(msg: String): Unit
+    def handleMessage(msg: String)
   }
 
   val logger = ESLoggerFactory.getLogger(this.getClass.getSimpleName)
 
   var observers = List[Observer]()
-  def addObservers(observer: Observer) { observers = observer +: observers }
+  def addObserver(observer: Observer) { observers = observer +: observers }
 
   def connect
 

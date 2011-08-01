@@ -1,10 +1,6 @@
 package streamingriver.river
 
 import org.elasticsearch.ExceptionsHelper
-import org.elasticsearch.action.ActionListener
-import org.elasticsearch.action.bulk.BulkResponse
-import org.elasticsearch.action.index.IndexResponse
-import org.elasticsearch.client.Client
 import org.elasticsearch.cluster.block.ClusterBlockException
 import org.elasticsearch.common.inject.Inject
 import org.elasticsearch.common.xcontent.XContentFactory
@@ -13,66 +9,62 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues
 import org.elasticsearch.indices.IndexAlreadyExistsException
 import org.elasticsearch.river.{AbstractRiverComponent, River, RiverName, RiverSettings}
 import streamingriver.handler.StreamHandler
+import org.elasticsearch.client.{Requests, Client}
 
 class StreamingRiver @Inject()(name: RiverName, settings: RiverSettings, client: Client)
   extends AbstractRiverComponent(name, settings)
   with River {
 
-  private[StreamingRiver] case class StreamingRiverConfiguration(indexName: String, typeName: String, uri: String,
-                                                 mapping: String, idField: String, bulkSize: Int, dropThreshold: Int)
-
   logger.info("creating streaming river for %s".format(riverName.name))
 
-  var stream: StreamHandler = null
   val config = createConfiguration(settings)
-
-  // null config indicates an invalid uri (the only required param
-  if (config!=null) {
-    stream = StreamHandler(config.uri) match {
-      case Some(handler) => handler
-      case None =>
-        logger.error("No handler defined for %s".format(config.uri))
-        null
-    }
-  }
+  val stream: Option[StreamHandler] = config.buildStream
+  val executor: Option[RequestExecutor] = config.buildIndexExectuor
 
   override def close() {
     logger.info("closing streaming river [%s]".format(riverName.name))
-    if (stream != null) {
-      stream.close
+
+    stream match {
+      case Some(s) => s.close
+      case None => logger.warn("Stream for %s inexistant".format(riverName.name))
     }
   }
 
   override def start() {
-    if (stream == null) {
-      return
-    }
+    stream match {
+      case Some(s) =>
 
-    logger.info("starting streaming river [%s]".format(riverName.name))
+        logger.info("starting streaming river [%s]".format(riverName.name))
 
-    try {
-      if (config.mapping!=null) {
-        client.admin.indices.prepareCreate(config.indexName).addMapping(config.typeName, config.mapping).execute.actionGet
-      } else {
-        client.admin.indices.prepareCreate(config.indexName).execute.actionGet
-      }
+        try {
+          if (config.mapping!=null) {
+            client.admin.indices.prepareCreate(config.indexName).addMapping(config.typeName, config.mapping).execute.actionGet
+          } else {
+            client.admin.indices.prepareCreate(config.indexName).execute.actionGet
+          }
 
-    } catch {
-      case e: Exception =>
-        if (ExceptionsHelper.unwrapCause(e).isInstanceOf[IndexAlreadyExistsException]) {
-          // that's fine
-        } else if (ExceptionsHelper.unwrapCause(e).isInstanceOf[ClusterBlockException]) {
-        } else {
-          logger.warn("failed to create index %s, disabling streaming river [%s]: %s".format(config.indexName, riverName.name, e))
-          return
+        } catch {
+          case e: Exception =>
+            if (ExceptionsHelper.unwrapCause(e).isInstanceOf[IndexAlreadyExistsException]) {
+              // that's fine
+            } else if (ExceptionsHelper.unwrapCause(e).isInstanceOf[ClusterBlockException]) {
+            } else {
+              logger.warn("failed to create index %s, disabling streaming river [%s]: %s".format(config.indexName, riverName.name, e))
+              return
+            }
         }
+
+        s.addObserver(this)
+        s.connect
+      case None => logger.warn("Stream for %s inexistant".format(riverName.name))
     }
 
-    stream.addObservers(this)
-    stream.connect
   }
 
-  private def createConfiguration(settings: RiverSettings): StreamingRiverConfiguration = {
+  /**
+   * 'uri' is the only required parameter
+   */
+  private def createConfiguration(settings: RiverSettings): Configuration = {
     // switch to a builder pattern if the code gets too unruly
 
     var indexName = riverName.name
@@ -80,7 +72,7 @@ class StreamingRiver @Inject()(name: RiverName, settings: RiverSettings, client:
 
     var mapping: String = null
     var idField: String = null
-    var bulkSize = 100
+    var bulkSize = 0
     var dropThreshold = 10
 
     val uri = XContentMapValues.nodeStringValue(settings.settings.get("uri"), null)
@@ -97,6 +89,10 @@ class StreamingRiver @Inject()(name: RiverName, settings: RiverSettings, client:
         mapping = """{"%s":{"properties":%s}}""".format(typeName, builder.string)
       }
 
+      if (settings.settings.containsKey("bulk")) {
+        val xxx = XContentMapValues.nodeIntegerValue(settings.settings.get("bulk"), 0)
+      }
+
       if (settings.settings().containsKey("index")) {
         val indexSettings = settings.settings.get("index").asInstanceOf[java.util.Map[String, Object]]
         indexName = XContentMapValues.nodeStringValue(indexSettings.get("index"), riverName.name)
@@ -107,42 +103,51 @@ class StreamingRiver @Inject()(name: RiverName, settings: RiverSettings, client:
         typeName = "streaming-type"
       }
 
-      bulkSize = XContentMapValues.nodeIntegerValue(settings.settings().get("bulk_size"), 100)
+      bulkSize = XContentMapValues.nodeIntegerValue(settings.settings().get("bulk_size"), 0)
       dropThreshold = XContentMapValues.nodeIntegerValue(settings.settings().get("drop_threshold"), 10)
 
 
     }
-    StreamingRiverConfiguration(indexName, typeName, uri, mapping, idField, bulkSize, dropThreshold)
+    Configuration(indexName, typeName, uri, mapping, idField, bulkSize, dropThreshold)
   }
 
 
-  def handleMessage(msg: String) = {
-    logger.debug("got message: ".format(msg))
+  def handleMessage(msg: String) {
+    logger.debug("received message")
 
-    try {
-      val parser = JsonXContent.jsonXContent.createParser(msg)
-      val msgMap = parser.map
+    executor match {
+      case Some(requestExecutor) =>
+        try {
+          val indexRequest = Requests.indexRequest(config.indexName).`type`(config.typeName)
 
-      var indexBuilder = client.prepareIndex(config.indexName, config.typeName).setSource(msg)
+          val parser = JsonXContent.jsonXContent.createParser(msg)
+          val msgMap = parser.map
 
-      // set the id if a field has been defined and the value can be found in the JSON
-      if (config.idField!= null && msgMap.get(config.idField) != null) {
-        indexBuilder = indexBuilder.setId(msgMap.get(config.idField).toString)
-      }
+          // set the id if a field has been defined and the value can be found in the JSON
+          if (config.idField!= null && msgMap.get(config.idField) != null) {
+            indexRequest.id(msgMap.get(config.idField).toString)
+          }
 
-      indexBuilder.execute(new ActionListener[IndexResponse]() {
-        def onResponse(indexResponse: IndexResponse) {
-          logger.debug("index executed: %s %s".format(indexResponse.getId, indexResponse.getIndex))
+
+          // TODO: make create configurable?
+          requestExecutor.act(indexRequest.create(false).source(msg))
+
+        } catch {
+          case e: Exception =>
+            logger.error("failed to construct index request [%s] from %s".format(riverName.name, msg), e)
         }
 
-        def onFailure(e: Throwable) {
-          logger.error("failed to execute index [%s] from %s".format(riverName.name, msg), e)
-        }
-      })
-
-    } catch {
-      case e: Exception =>
-        logger.error("failed to construct index request [%s] from %s".format(riverName.name, msg), e)
+      case None => logger.warn("No executor defined for ".format(riverName.name))
     }
   }
+
+  // Simple configuration encapsulation - don't want to think too much about it
+  private[StreamingRiver] case class Configuration(indexName: String, typeName: String, uri: String,
+                                                 mapping: String, idField: String, bulkSize: Int, dropThreshold: Int) {
+    def buildStream: Option[StreamHandler] = StreamHandler(uri)
+    def buildIndexExectuor: Option[RequestExecutor] = {
+      if (bulkSize>0) Some(new BulkRequestExecutor(client, bulkSize, dropThreshold)) else Some(new SingleRequestExecutor(client))
+    }
+  }
+
 }

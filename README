@@ -1,31 +1,12 @@
-Simple websocket implmentation of an ElasticSearch river: http://www.elasticsearch.org/guide/reference/river/
+Simple http-streaming and websocket implementation of an ElasticSearch river: http://www.elasticsearch.org/guide/reference/river/
 
 The project uses sbt (http://code.google.com/p/simple-build-tool/) as the build tool.  Once sbt is installed, the project file must be updated to denote the exact version of ElasticSearch to build against.
 
-edit $PROJECT_HOME/project/build/RiverProject.scala
+edit $PROJECT_HOME/project/build/StreamingRiverProject.scala
 change elasticsearchVersion to your version of ElasticSearch
 
 % cd $PROJECT_HOME
 % sbt package-elasticsearch
-% $ELASTICSEARCH_HOME/bin/plugin url $PROJECT_HOME/target/scala_2.8.1 install simple-websocket
+% $ELASTICSEARCH_HOME/bin/plugin url $PROJECT_HOME/target/scala_2.9.0 install streaming-river
 
-Start the river
-
-Meetup.com example
-
-curl -XPUT localhost:9200/_river/meetup/_meta -d '
-{
-    "type" : "simple-websocket",
-    "uri" : "ws://stream.meetup.com/2/rsvps",
-    "id_field" : "rsvp_id",
-    "mapping" : {
-        "rsvp_id"  : {"type" : "long", "store" : "yes"},
-        "response" : {"type" : "string", "store" : "yes", "index" : "not_analyzed" }        
-     },
-     "index" : {
-        "index" : "meetup",
-        "type" : "rsvp"
-    }
-}
-'
-
+See the Wiki for additional documentation and examples
