@@ -14,12 +14,12 @@ class WebSocketHandler(uri: String) extends StreamHandler {
 
   // delegate to websocket client
   override def connect = {
-    logger.info("Opening WebSocket for ".format(uri))
+    logger.info("Opening WebSocket for %s".format(uri))
     wsc.connect
   }
 
   override def close = {
-    logger.info("Closing WebSocket for ".format(uri))
+    logger.info("Closing WebSocket for %s".format(uri))
     wsc.close
   }
 }

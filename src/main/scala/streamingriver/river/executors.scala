@@ -9,6 +9,8 @@ import org.elasticsearch.common.logging.ESLoggerFactory
 import org.elasticsearch.action.index.{IndexRequest, IndexResponse}
 
 trait RequestExecutor {
+  protected val logger = ESLoggerFactory.getLogger(this.getClass.getCanonicalName)
+
   def act(request: IndexRequest)
 }
 
@@ -17,8 +19,6 @@ trait RequestExecutor {
  * Execute a bulk index once we pass a configurable number of requests
  */
 class BulkRequestExecutor(client: Client, bulkSize: Int, dropThreshold: Int) extends RequestExecutor {
-  private val logger = ESLoggerFactory.getLogger(this.getClass.getSimpleName)
-
   private var underlyingBuilder = client.prepareBulk
   private val onGoingBulks = new AtomicInteger
 
@@ -74,8 +74,6 @@ class BulkRequestExecutor(client: Client, bulkSize: Int, dropThreshold: Int) ext
  * Simple pass-thru
  */
 class SingleRequestExecutor(client: Client) extends RequestExecutor {
-  private val logger = ESLoggerFactory.getLogger(this.getClass.getSimpleName)
-
   def act(request: IndexRequest) {
     try {
       client.index(request, new ActionListener[IndexResponse]() {

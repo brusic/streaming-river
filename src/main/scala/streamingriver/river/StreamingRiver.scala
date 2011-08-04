@@ -113,7 +113,7 @@ class StreamingRiver @Inject()(name: RiverName, settings: RiverSettings, client:
 
 
   def handleMessage(msg: String) {
-    logger.debug("received message")
+    logger.debug("received message [size: %s]: %s ...".format(msg.size, msg.take(16)))
 
     executor match {
       case Some(requestExecutor) =>
@@ -137,7 +137,7 @@ class StreamingRiver @Inject()(name: RiverName, settings: RiverSettings, client:
             logger.error("failed to construct index request [%s] from %s".format(riverName.name, msg), e)
         }
 
-      case None => logger.warn("No executor defined for ".format(riverName.name))
+      case None => logger.warn("No executor defined for %s".format(riverName.name))
     }
   }
 

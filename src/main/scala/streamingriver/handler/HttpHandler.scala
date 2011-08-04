@@ -9,13 +9,13 @@ class HttpHandler(uri: String) extends StreamHandler {
   var http: HttpExecutor = _
 
   override def connect {
-    logger.info("Opening HTTP stream for ".format(uri))
+    logger.info("Opening HTTP stream for %s".format(uri))
     http = new nio.Http
     http(url(uri) ^-- { msg => observers.foreach { observer => observer.handleMessage(msg)}})
   }
 
   override def close {
-    logger.info("Closing HTTP stream for ".format(uri))
+    logger.info("Closing HTTP stream for %s".format(uri))
     http.shutdown()
   }
 }

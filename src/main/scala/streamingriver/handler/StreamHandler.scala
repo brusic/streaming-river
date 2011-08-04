@@ -8,7 +8,7 @@ abstract class StreamHandler {
     def handleMessage(msg: String)
   }
 
-  val logger = ESLoggerFactory.getLogger(this.getClass.getSimpleName)
+  val logger = ESLoggerFactory.getLogger(this.getClass.getCanonicalName)
 
   var observers = List[Observer]()
   def addObserver(observer: Observer) { observers = observer +: observers }
