@@ -1,12 +1,3 @@
 Simple http-streaming and websocket implementation of an ElasticSearch river: http://www.elasticsearch.org/guide/reference/river/
 
-The project uses sbt (http://code.google.com/p/simple-build-tool/) as the build tool.  Once sbt is installed, the project file must be updated to denote the exact version of ElasticSearch to build against.
-
-edit $PROJECT_HOME/project/build/StreamingRiverProject.scala
-change elasticsearchVersion to your version of ElasticSearch
-
-% cd $PROJECT_HOME
-% sbt package-elasticsearch
-% $ELASTICSEARCH_HOME/bin/plugin url $PROJECT_HOME/target/scala_2.9.0 install streaming-river
-
 See the Wiki for additional documentation and examples
