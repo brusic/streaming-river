@@ -6,8 +6,8 @@ class StreamingRiverProject(info: ProjectInfo) extends DefaultProject(info) {
   val sonatypeSnapshots = "Sonatype Maven2 Snapshots Repository" at "http://oss.sonatype.org/content/repositories/snapshots/"
 
   val pluginName = "streaming-river"
-  val dispatchVersion = "0.8.3"
-  val elasticsearchVersion = "0.16.2"
+  val dispatchVersion = "0.8.4"
+  val elasticsearchVersion = "0.17.3"
   val elasticsearchJarPluginName = "elasticsearch-%s-%s.zip".format(pluginName, elasticsearchVersion)
 
   val elasticsearch = "org.elasticsearch" % "elasticsearch" % elasticsearchVersion
